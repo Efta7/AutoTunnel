@@ -1,0 +1,137 @@
+#! /bin/bash
+
+export PORT="10000"
+export USER="tunnel"
+export MASTERS="efta7egypt"
+export INTERVAL="600"
+export SEARCHRADIUS="10"
+export KEY="632Tt5uGNIzmmq0rMUoipJCsz6aveBgc"
+
+function cleanUp()
+{
+#	sed -i '/ProxyType/d' "${HOME}"/.kde/share/config/kioslaverc
+#	echo 'ProxyType=0' >> "${HOME}"/.kde/share/config/kioslaverc
+	export SSHPID=`cat /tmp/tunnel.pid`
+	kill -9 "${SSHPID}"  > /dev/null 2>&1
+	rm -f /tmp/tunnel.pid
+	rm -f /tmp/tunnel.fifo
+	rm -f /tmp/TUNNELS
+	rm -f /tmp/TUNNELS.tmp
+	iptables -F
+	iptables -X
+	iptables -Z
+	iptables -t nat -F
+	iptables -t nat -X
+	iptables -t nat -Z
+	killall redsocks 2> /dev/null
+	rm -f /tmp/redsocks.conf 2> /dev/null
+	echo "Terminated ..."
+	exit
+}
+
+function KDEConfig()
+{
+	echo "ProxyUrlDisplayFlags=8" > "${HOME}"/.kde/share/config/kioslaverc
+	echo >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "[Proxy Settings]" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "NoProxyFor=" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "Proxy Config Script=" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "ProxyType=1" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "ReversedException=false" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "ftpProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "httpProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "httpsProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
+	echo "socksProxy=http://127.0.0.1 ${PORT}" >> "${HOME}"/.kde/share/config/kioslaverc
+}
+
+function socksConfig()
+{
+	iptables -F
+	iptables -X
+	iptables -Z
+	iptables -t nat -F
+	iptables -t nat -X
+	iptables -t nat -Z
+	killall redsocks 2> /dev/null
+	rm -f redsocks.conf 2> /dev/null
+
+	echo 'base{log_debug = on; log_info = on; log = "file:/tmp/reddi.log";
+	daemon = on; redirector = iptables;}
+	redsocks { local_ip = 127.0.0.1; local_port = 31338; ip = 127.0.0.1;
+	port = '${PORT}'; type = socks5; }' > /tmp/redsocks.conf
+
+	redsocks -c /tmp/redsocks.conf
+	iptables -t nat -N REDSOCKS
+	iptables -t nat -A REDSOCKS -d 0.0.0.0/8 -j RETURN
+	iptables -t nat -A REDSOCKS -d 10.0.0.0/8 -j RETURN
+	iptables -t nat -A REDSOCKS -d 127.0.0.0/8 -j RETURN
+	iptables -t nat -A REDSOCKS -d 169.254.0.0/16 -j RETURN
+	iptables -t nat -A REDSOCKS -d 172.16.0.0/12 -j RETURN
+	iptables -t nat -A REDSOCKS -d 192.168.0.0/16 -j RETURN
+	iptables -t nat -A REDSOCKS -d 224.0.0.0/4 -j RETURN
+	iptables -t nat -A REDSOCKS -d 240.0.0.0/4 -j RETURN
+	iptables -t nat -A REDSOCKS -p tcp -j DNAT --to 127.0.0.1:31338
+	iptables -t nat -A OUTPUT -p tcp -j REDSOCKS
+	iptables -t nat -I REDSOCKS -d $ip -j RETURN
+}
+
+function getList()
+{
+	rm -f /tmp/TUNNELS.tmp
+	for PAGE in `echo ${MASTERS} | tr ' ' '\n'`
+	do
+		[[ -n `cat /tmp/TUNNELS.tmp 2> /dev/null` ]] && break
+		echo -e "\nRefreshing list [Trying $PAGE]"
+		postid=`curl -s https://m.facebook.com/"${PAGE}" | grep -o '/story.php?story_fbid=[0-9]*' | awk -F '=' '{print $2}' | sort | uniq | head -n1`
+		curl -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
+	done
+}
+
+function sortList()
+{
+	echo -e "\nSorting list ..."
+	list=`cat /tmp/TUNNELS.tmp | shuf | head -n "${SEARCHRADIUS}"`
+	for i in $list
+	do
+	ip=`echo "${i}" | awk -F ':' '{print $1}'`
+	ping -w 1 -q -c 1 "${ip}" | grep min/avg/max/mdev | awk -F '=' '{print $2}' | awk -F '/' '{print $2}' | sed 's/$/ '$i'/g'
+	done | sort -n | awk '{print $2}' > /tmp/TUNNELS
+}
+
+[[ "$INTERVAL" -ge 300 ]] && export TOUT="-t"
+[[ "$INTERVAL" -lt 300 ]] && export INTERVAL=""
+
+trap cleanUp SIGINT SIGHUP SIGKILL SIGTERM
+
+#KDEConfig
+rm -f /tmp/tunnel.fifo
+rm -f /tmp/TUNNELS
+rm -f /tmp/TUNNELS.tmp
+
+mkfifo /tmp/tunnel.fifo
+chmod a+rw /tmp/tunnel.fifo
+
+while [[ -z `cat /tmp/TUNNELS.tmp 2> /dev/null` ]]
+do
+	getList
+done
+
+while cat /tmp/tunnel.fifo; do true; done | while true
+do
+	[[ -z `cat /tmp/TUNNELS 2> /dev/null | head -n1` ]] && sortList
+	ipcont=`cat /tmp/TUNNELS | head -n1`
+	ip=`echo "$ipcont" | awk -F ':' '{print $1}'`
+	port=`echo "$ipcont" | awk -F ':' '{print $2}'`
+	echo -e "\nUsing: ${ip}:${port}"
+	ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}" > /dev/null 2>&1 &
+	pid=$!
+	disown
+	export SSHPID="${pid}"
+	echo "${SSHPID}" > /tmp/tunnel.pid
+	socksConfig "$ip"
+	[[ -n "${TOUT}" ]] && read "${TOUT}" "${INTERVAL}" -s -n 1 answer
+	[[ -z "${TOUT}" ]] && read -s -n 1 answer
+	[[ "$answer" == "x" ]] && cleanUp
+	sortList
+	kill -9 "${SSHPID}" > /dev/null 2>&1
+done &
