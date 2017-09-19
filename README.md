@@ -4,19 +4,21 @@ Distributed SSH tunneling implementation for GNU/Linux
  Note: This software is in early development stages, please help us enhance it further.
 
 ## Use case
- In case of DPI where ISPs are blocking VPN connections.
+ In case of DPI (Deep Packet Inspection) where ISPs are blocking VPN connections.
  The idea is to have multiple ssh tunnels providers and to keep updating the servers list
  by contributions of other sysadmins.
 
  The best example of this is the case of Egypt. Where all ISPs are required to block certian
- websites and blocking VPN providers constantly. This software is created specifically for this
+ websites and VPN providers constantly. This software is created specifically for this
  situation, where members of the IT community are willing to contribute to stop internet censorship.
 
 ## How it works
- It's a simple SSH tunneling mechanism but on steroids with everything being fault-tolerant.
- A sysadmin willing to contribute a SSH server will simply create a user with no credentials
- then set his shell to nologin and allow passwordless login and send his SSH server IP/Port to a
- Master List operator.
+ It's a simple SSH tunneling mechanism but on steroids, with everything being fault-tolerant.
+ A sysadmin willing to contribute an SSH server will simply follow these steps:
+ 
+ 1- Create a user with no credentials.
+ 2- Set his shell to nologin and allow passwordless login.
+ 3- Send his SSH server IP/Port to a Master List operator.
 
  The Master List is AES-256-CBC encrypted - BASE64 encoded string posted to a Facebook page.
  The key is preset by the list operator and provided to users of that list as part of the client
@@ -62,7 +64,7 @@ Configuration:
  However, If the daemon is running without the first parameter as the path of the configuration file, it will look under /etc/autotunnel.conf
  If it couldn't find it, then it will exit.
 
- You can find comments inside default configuration file on each parameter.
+ You can find comments inside default configuration file descriping each parameter.
 
 ## Installing/Running Server side SSH Tunnel
 
