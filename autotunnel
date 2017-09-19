@@ -13,6 +13,11 @@ export INTERVAL="300"
 export SEARCHRADIUS="10"
 export KEY="632Tt5uGNIzmmq0rMUoipJCsz6aveBgc"
 
+[[ "$INTERVAL" -ge 300 ]] && export TOUT="-t"
+[[ "$INTERVAL" -lt 300 ]] && export INTERVAL=""
+
+trap cleanUp SIGINT SIGHUP SIGKILL SIGTERM
+
 function cleanUp()
 {
 	export SSHPID=`cat /tmp/tunnel.pid 2> /dev/null`
@@ -29,7 +34,7 @@ function cleanUp()
 	iptables -t nat -Z
 	killall redsocks 2> /dev/null
 	rm -f /tmp/redsocks.conf 2> /dev/null
-	echo "Terminated ..."
+	killall -9 autotunnel > /dev/null 2>&1
 	exit
 }
 
@@ -84,15 +89,10 @@ function sortList()
 	list=`cat /tmp/TUNNELS.tmp | shuf | head -n "${SEARCHRADIUS}"`
 	for i in $list
 	do
-	ip=`echo "${i}" | awk -F ':' '{print $1}'`
-	ping -w 1 -q -c 1 "${ip}" | grep min/avg/max/mdev | awk -F '=' '{print $2}' | awk -F '/' '{print $2}' | sed 's/$/ '$i'/g'
+		ip=`echo "${i}" | awk -F ':' '{print $1}'`
+		ping -w 1 -q -c 1 "${ip}" | grep min/avg/max/mdev | awk -F '=' '{print $2}' | awk -F '/' '{print $2}' | sed 's/$/ '$i'/g'
 	done | sort -n | awk '{print $2}' > /tmp/TUNNELS
 }
-
-[[ "$INTERVAL" -ge 300 ]] && export TOUT="-t"
-[[ "$INTERVAL" -lt 300 ]] && export INTERVAL=""
-
-trap cleanUp SIGINT SIGHUP SIGKILL SIGTERM
 
 rm -f /tmp/tunnel.fifo
 rm -f /tmp/TUNNELS
@@ -133,16 +133,17 @@ do
 			elapsed=0
 			while [[ "$elapsed" -lt "${INTERVAL}" ]]
 			do
-				read "${TOUT}" 1 -s -n 1 answer
+				read "${TOUT}" 1 -s -n 1 answer && break
 				elapsed=$((elapsed+1))
 				kill -0 "${SSHPID}" 2> /dev/null || break
 			done
 		fi
 		[[ -z "${TOUT}" ]] && read -s -n 1 answer
+		[[ "$answer" == "x" ]] && cleanUp
+		sortList
+		kill -9 "${SSHPID}" > /dev/null 2>&1
+		cat /tmp/TUNNELS 2> /dev/null | head -n1 > /dev/null
 	done
-	[[ "$answer" == "x" ]] && cleanUp
-	sortList
-	kill -9 "${SSHPID}" > /dev/null 2>&1
 done
 
 cleanUp
