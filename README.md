@@ -64,9 +64,72 @@ Configuration:
 
  You can find comments inside default configuration file on each parameter.
 
-## Installing/Running Server side daemon
+## Installing/Running Server side SSH Tunnel
 
- This feature is still in development, so please be patient.
+All you need is an active SSH server, if not plese install it.
+
+Installing openssh-server for Debian/Ubuntu or similar distros:
+ ```
+ apt-get install openssh-server openssh-client
+ /etc/init.d/ssh restart
+ ```
+
+Installing openssh-server for CentOS:
+ ```
+ yum -y install openssh-server openssh-clients
+ service sshd start
+ ```
+
+Installing openssh-server for Fedora:
+ ```
+ dnf install -y openssh-server
+ systemctl start sshd.service
+ ```
+
+Installing openssh-server for ArchLinux:
+ ```
+ pacman -S openssh
+ systemctl start sshd.socket
+ ```
+
+After installation, please make sure the ssh service is running by typing:
+ ```
+ netstat -tulpn | grep :22
+ ```
+
+If it returns empty lines then it's not running or you are running it under a different port.
+Please consult your distro's guide on how to install and configure SSH server properly.
+
+
+Once you got your server running, use the following command to have the tunneling user ready:
+ ```
+ # Be root
+ su
+
+ # Create default home directory for tunnel user
+ mkdir -p /var/tunnel
+
+ # Add user called tunnel, set shell to nologin and home directory to /var/tunnel
+ useradd tunnel -s /usr/sbin/nologin -p '*' -d /var/tunnel
+
+ # Set ownership for home directory to nobody and nogroup
+ chown nobody:nogroup /var/tunnel/
+
+ # Remove write privilege
+ chmod -w /var/tunnel/
+
+ # Allow passwordless login for tunnel user.
+ sed -i 's/^tunnel:\*/tunnel:U6aMy0wojraho/g' /etc/shadow
+
+ # Remove bashrc if exists
+ rm -rf /var/tunnel/.bashrc
+
+ # Allow empty passwords, if you don't feel comfortable doing this for any reason, don't donate your SSH server
+ sed -i 's/PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
+
+ # Restart SSH service
+ /etc/init.d/ssh restart || /etc/init.d/sshd restart || systemctl restart sshd.service
+```
 
 ## Installing/Running Master List deamon
 
