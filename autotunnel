@@ -1,5 +1,11 @@
 #! /bin/bash
 
+if [[ `whoami` != "root" ]]
+then
+	echo "Must be root to initialize this deamon. Exiting"
+	exit 255
+fi
+
 export PORT="10000"
 export USER="tunnel"
 export MASTERS="efta7egypt"
@@ -9,9 +15,7 @@ export KEY="632Tt5uGNIzmmq0rMUoipJCsz6aveBgc"
 
 function cleanUp()
 {
-#	sed -i '/ProxyType/d' "${HOME}"/.kde/share/config/kioslaverc
-#	echo 'ProxyType=0' >> "${HOME}"/.kde/share/config/kioslaverc
-	export SSHPID=`cat /tmp/tunnel.pid`
+	export SSHPID=`cat /tmp/tunnel.pid 2> /dev/null`
 	kill -9 "${SSHPID}"  > /dev/null 2>&1
 	rm -f /tmp/tunnel.pid
 	rm -f /tmp/tunnel.fifo
@@ -27,21 +31,6 @@ function cleanUp()
 	rm -f /tmp/redsocks.conf 2> /dev/null
 	echo "Terminated ..."
 	exit
-}
-
-function KDEConfig()
-{
-	echo "ProxyUrlDisplayFlags=8" > "${HOME}"/.kde/share/config/kioslaverc
-	echo >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "[Proxy Settings]" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "NoProxyFor=" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "Proxy Config Script=" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "ProxyType=1" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "ReversedException=false" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "ftpProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "httpProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "httpsProxy=" >> "${HOME}"/.kde/share/config/kioslaverc
-	echo "socksProxy=http://127.0.0.1 ${PORT}" >> "${HOME}"/.kde/share/config/kioslaverc
 }
 
 function socksConfig()
@@ -82,8 +71,10 @@ function getList()
 	do
 		[[ -n `cat /tmp/TUNNELS.tmp 2> /dev/null` ]] && break
 		echo -e "\nRefreshing list [Trying $PAGE]"
-		postid=`curl -s https://m.facebook.com/"${PAGE}" | grep -o '/story.php?story_fbid=[0-9]*' | awk -F '=' '{print $2}' | sort | uniq | head -n1`
-	curl -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
+		postid=`curl -m 5 -s https://m.facebook.com/"${PAGE}" | grep -o '/story.php?story_fbid=[0-9]*' | awk -F '=' '{print $2}' | sort | uniq | head -n1`
+		curl -m 5 -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | \
+		sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | \
+		sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
 	done
 }
 
@@ -103,10 +94,10 @@ function sortList()
 
 trap cleanUp SIGINT SIGHUP SIGKILL SIGTERM
 
-#KDEConfig
 rm -f /tmp/tunnel.fifo
 rm -f /tmp/TUNNELS
 rm -f /tmp/TUNNELS.tmp
+lastip=""
 
 mkfifo /tmp/tunnel.fifo
 chmod a+rw /tmp/tunnel.fifo
@@ -121,22 +112,37 @@ do
 	[[ -z `cat /tmp/TUNNELS 2> /dev/null | head -n1` ]] && sortList
 	ipcont=`cat /tmp/TUNNELS | head -n1`
 	ip=`echo "$ipcont" | awk -F ':' '{print $1}'`
+	if [[ "${ip}" == "${lastip}" ]]
+	then
+		ipcont=`cat /tmp/TUNNELS | sed '/'${ip}'/d' | head -n1`
+		ip=`echo "$ipcont" | awk -F ':' '{print $1}'`
+	fi
 	port=`echo "$ipcont" | awk -F ':' '{print $2}'`
+	lastip="${ip}"
 	echo -e "\nUsing: ${ip}:${port}"
-	ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}"  &
+	ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}" > /dev/null 2>&1 &
 	pid=$!
 	disown
 	export SSHPID="${pid}"
 	echo "${SSHPID}" > /tmp/tunnel.pid
-socksConfig "$ip"
-	if kill -0 "${SSHPID}"
-	then
-		[[ -n "${TOUT}" ]] && read "${TOUT}" "${INTERVAL}" -s -n 1 answer
+	socksConfig "$ip"
+	while kill -0 "${SSHPID}" > /dev/null 2>&1
+	do
+		if [[ -n "${TOUT}" ]]
+		then
+			elapsed=0
+			while [[ "$elapsed" -lt "${INTERVAL}" ]]
+			do
+				read "${TOUT}" 1 -s -n 1 answer
+				elapsed=$((elapsed+1))
+				kill -0 "${SSHPID}" 2> /dev/null || break
+			done
+		fi
 		[[ -z "${TOUT}" ]] && read -s -n 1 answer
-	fi
+	done
 	[[ "$answer" == "x" ]] && cleanUp
 	sortList
-	kill -9 "${SSHPID}" #> /dev/null 2>&1
+	kill -9 "${SSHPID}" > /dev/null 2>&1
 done
 
 cleanUp
