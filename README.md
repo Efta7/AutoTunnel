@@ -54,7 +54,7 @@ Then run:
  git clone https://github.com/Efta7/AutoTunnel.git
  cd AutoTunnel
  chmod +x autotunnel
- ./autotunnel ./autotunnel.conf
+ sudo ./autotunnel ./autotunnel.conf
 ```
 
 Configuration:
