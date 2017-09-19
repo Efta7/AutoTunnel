@@ -26,7 +26,7 @@ Distributed SSH tunneling implementation for GNU/Linux
  The client daemon will retrieve the list, decrypt it and will select the server with the lowest latency
  and keep switching tunnels through that list.
 
- The client deamon will forward all TCP connection through that SSH tunnel. so [redsocks] (https://github.com/darkk/redsocks)
+ The client deamon will forward all TCP connection through that SSH tunnel. so [redsocks](https://github.com/darkk/redsocks)
  is a dependency to this daemon.
 
  In case one IP failed for any reason. the client will automatically switch to another one retaining the connection.
@@ -76,4 +76,4 @@ Configuration:
  We are implementing this after we finish other server side work, so please be patient.
 
 ## License (GPLv3.0)
- See license [here] (https://www.gnu.org/licenses/gpl-3.0.txt)
+ See license [here](https://www.gnu.org/licenses/gpl-3.0.txt)
