@@ -126,6 +126,7 @@ do
 	export SSHPID="${pid}"
 	echo "${SSHPID}" > /tmp/tunnel.pid
 	socksConfig "$ip"
+	sleep 1
 	while kill -0 "${SSHPID}" > /dev/null 2>&1
 	do
 		if [[ -n "${TOUT}" ]]
