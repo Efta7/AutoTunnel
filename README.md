@@ -1,2 +1,3 @@
-# Auto-SSH-Tunneling
-Multi-Platform Client-Server Automated SSH Tunneling. 
+# AutoTunnel
+Distributed SSH tunneling implementation for GNU/Linux
+
