@@ -3,7 +3,7 @@
 export PORT="10000"
 export USER="tunnel"
 export MASTERS="efta7egypt"
-export INTERVAL="600"
+export INTERVAL="300"
 export SEARCHRADIUS="10"
 export KEY="632Tt5uGNIzmmq0rMUoipJCsz6aveBgc"
 
@@ -72,7 +72,7 @@ function socksConfig()
 	iptables -t nat -A REDSOCKS -d 240.0.0.0/4 -j RETURN
 	iptables -t nat -A REDSOCKS -p tcp -j DNAT --to 127.0.0.1:31338
 	iptables -t nat -A OUTPUT -p tcp -j REDSOCKS
-	iptables -t nat -I REDSOCKS -d $ip -j RETURN
+	iptables -t nat -I REDSOCKS -d $1 -j RETURN
 }
 
 function getList()
@@ -83,7 +83,7 @@ function getList()
 		[[ -n `cat /tmp/TUNNELS.tmp 2> /dev/null` ]] && break
 		echo -e "\nRefreshing list [Trying $PAGE]"
 		postid=`curl -s https://m.facebook.com/"${PAGE}" | grep -o '/story.php?story_fbid=[0-9]*' | awk -F '=' '{print $2}' | sort | uniq | head -n1`
-		curl -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
+	curl -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
 	done
 }
 
@@ -123,15 +123,20 @@ do
 	ip=`echo "$ipcont" | awk -F ':' '{print $1}'`
 	port=`echo "$ipcont" | awk -F ':' '{print $2}'`
 	echo -e "\nUsing: ${ip}:${port}"
-	ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}" > /dev/null 2>&1 &
+	ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}"  &
 	pid=$!
 	disown
 	export SSHPID="${pid}"
 	echo "${SSHPID}" > /tmp/tunnel.pid
-	socksConfig "$ip"
-	[[ -n "${TOUT}" ]] && read "${TOUT}" "${INTERVAL}" -s -n 1 answer
-	[[ -z "${TOUT}" ]] && read -s -n 1 answer
+socksConfig "$ip"
+	if kill -0 "${SSHPID}"
+	then
+		[[ -n "${TOUT}" ]] && read "${TOUT}" "${INTERVAL}" -s -n 1 answer
+		[[ -z "${TOUT}" ]] && read -s -n 1 answer
+	fi
 	[[ "$answer" == "x" ]] && cleanUp
 	sortList
-	kill -9 "${SSHPID}" > /dev/null 2>&1
-done &
+	kill -9 "${SSHPID}" #> /dev/null 2>&1
+done
+
+cleanUp
