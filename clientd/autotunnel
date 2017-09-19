@@ -105,7 +105,7 @@ function getList()
 		postid=`curl -m 5 -s https://m.facebook.com/"${PAGE}" | grep -o '/story.php?story_fbid=[0-9]*' | awk -F '=' '{print $2}' | sort | uniq | head -n1`
 		curl -m 5 -s https://m.facebook.com/"${PAGE}"/posts/"${postid}" | grep -Eo "# [[:graph:]]* #" | head -n1 | awk -F '#' '{print $2}' | \
 		sed 's/^ //g' | sed 's/ $//g' | openssl enc -aes-256-cbc -pass pass:"${KEY}" -d -p -base64 -A | sed 's/SOCKS //g' | sort | uniq | \
-		sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | sed -e '/[a-z]/d' > /tmp/TUNNELS.tmp
+		sed 's/^ //g' | tr -s ' ' | sed 's/ $//g' | tr ' ' '.' | tr '=' ':' | grep '\.' | grep -v 'iv\.:' > /tmp/TUNNELS.tmp
 	done
 }
 
@@ -143,9 +143,11 @@ do
 		ipcont=`cat /tmp/TUNNELS | sed '/'${ip}'/d' | head -n1`
 		ip=`echo "$ipcont" | awk -F ':' '{print $1}'`
 	fi
-	port=`echo "$ipcont" | awk -F ':' '{print $2}'`
+	port=`echo "$ipcont" | awk -F ':' '{print $2}' | awk -F '-' '{print $1}'`
+	srvuser=`echo "$ipcont" | awk -F ':' '{print $2}' | awk -F '-' '{print $2}'`
+	[[ -n "$srvuser" ]] && export USER="$srvuser"
 	lastip="${ip}"
-	echo -e "\nUsing: ${ip}:${port}"
+	echo -e "\nUsing: ${ip}:${port} - username: ${USER}"
 	ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -N "$USER"@"$ip" -D "${PORT}" -p "${port}" > /dev/null 2>&1 &
 	pid=$!
 	disown
