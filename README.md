@@ -16,9 +16,9 @@ Distributed SSH tunneling implementation for GNU/Linux
  It's a simple SSH tunneling mechanism but on steroids, with everything being fault-tolerant.
  A sysadmin willing to contribute an SSH server will simply follow these steps:
  
- 1- Create a user with no credentials.
- 2- Set his shell to nologin and allow passwordless login.
- 3- Send his SSH server IP/Port to a Master List operator.
+ 1. Create a user with no credentials.
+ 2. Set his shell to nologin and allow passwordless login.
+ 3. Send his SSH server IP/Port to a Master List operator.
 
  The Master List is AES-256-CBC encrypted - BASE64 encoded string posted to a Facebook page.
  The key is preset by the list operator and provided to users of that list as part of the client
