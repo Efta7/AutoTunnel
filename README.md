@@ -52,7 +52,7 @@ and the username to SSH servers.
 Then run:
 ```
  git clone https://github.com/Efta7/AutoTunnel.git
- cd AutoTunnel
+ cd AutoTunnel/clientd
  chmod +x autotunnel
  sudo ./autotunnel ./autotunnel.conf
 ```
