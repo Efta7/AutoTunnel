@@ -6,12 +6,38 @@ then
 	exit 255
 fi
 
-export PORT="10000"
-export USER="tunnel"
-export MASTERS="efta7egypt"
-export INTERVAL="300"
-export SEARCHRADIUS="10"
-export KEY="632Tt5uGNIzmmq0rMUoipJCsz6aveBgc"
+if [[ -f "$1" ]] && [[ -n "$1" ]]
+then
+	conffile="$1"
+else
+	conffile="/etc/autotunnel.conf"
+fi
+
+if [[ ! -f "$conffile" ]]
+then
+	echo "Missing configuration file. Exiting"
+	exit 254
+fi
+
+. "${conffile}"
+
+[[ -z "${PORT}" ]] && PORT="10000"
+[[ -z "${USER}" ]] && USER="tunnel"
+[[ -z "${INTERVAL}" ]] && INTERVAL="300"
+[[ -z "${SEARCHRADIUS}" ]] && SEARCHRADIUS="10"
+
+if [[ -z "${KEY}" ]]
+then
+	echo "Missing master list key. Exiting"
+	exit 253
+fi
+
+if [[ -z "${MASTERS}" ]]
+then
+	echo "Missing master list page id. Exiting"
+	exit 252
+fi
+
 
 [[ "$INTERVAL" -ge 300 ]] && export TOUT="-t"
 [[ "$INTERVAL" -lt 300 ]] && export INTERVAL=""
